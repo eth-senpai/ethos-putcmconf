@@ -1,0 +1,88 @@
+#!/usr/bin/env php
+<?php
+`/opt/ethos/bin/bootlog putcmconf`;
+putcmconf("1");
+
+function get_http_response_code($url)
+{
+	$headers = @get_headers($url);
+	return substr($headers[0], 9, 3);
+}
+
+function putcmconf($interactive = "0")
+{
+	`sudo /opt/ethos/sbin/ethos-motd-generator`;
+	`/usr/bin/dos2unix -q /home/ethos/remotecm.conf`;
+
+
+	if ($interactive != "1") {
+                `/sbin/ifconfig | grep bytes | sed 's/bytes/*/g' | sed 's/://g' | sed 's/ (/*/g' | cut -d"*" -f2,4 | head -1 | cut -d"*" -f1 >> /var/log/rx.log`;
+                `/sbin/ifconfig | grep bytes | sed 's/bytes/*/g' | sed 's/://g' | sed 's/ (/*/g' | cut -d"*" -f2,4 | head -1 | cut -d"*" -f2 >> /var/log/tx.log`;
+		sleep(mt_rand(0, 5)); //do not saturate webserver children with requests if run automatically
+	}
+
+	$remote = trim(`cat /home/ethos/remotecm.conf | grep -v '^#' | grep '\.' | head -1`);
+	$send_remote = substr($remote, 0, 150);
+	file_put_contents("/var/run/ethos/send_remotecm.file", $send_remote);
+	echo "\n";
+	if (strlen($remote) == 0 || !eregi("http://|https://", $remote) || substr($remote, 0, 1) == "#") {
+		$message = "REMOTECM CONFIG DOES NOT EXIST OR IS FORMATTED INCORRECTLY. USING LOCAL claymore.stub.conf.";
+		echo $message . "\n";
+		if (!$remote) {
+			file_put_contents("/var/run/ethos/cmconfig_mode.file", "singlerig");
+		}
+		else {
+			file_put_contents("/var/run/ethos/cmconfig_mode.file", "badformat");
+		}
+
+		return;
+	}
+	else {
+		ini_set('default_socket_timeout', 3);
+		$header = get_http_response_code($remote);
+		if ($interactive == "1") {
+			echo " ...";
+		}
+	}
+        $header_array = array(200, 301, 302);
+	if (!in_array($header, $header_array)) {
+		$message = "REMOTELY DEFINED CONFIG SERVER IS UNREACHABLE. USING LOCAL claymore.stub.conf.";
+		echo $message . "\n";
+		file_put_contents("/var/run/ethos/cmconfig_mode.file", "unreachable");
+		return;
+	}
+	else {
+		$remote = trim($remote);
+		$remote_contents = trim(file_get_contents($remote, FILE_IGNORE_NEW_LINES));
+		if ($interactive == "1") {
+			echo "...";
+		}
+	}
+
+	if (strlen($remote_contents) < 15) {
+		$message = "REMOTECM CONFIG APPEARS TO BE TOO SHORT. USING LOCAL claymore.stub.conf.";
+		echo $message . "\n";
+		file_put_contents("/var/run/ethos/cmconfig_mode.file", "tooshort");
+		return;
+	}
+	else {
+		if ($interactive == "1") {
+			echo "...";
+		}
+	}
+
+	if (md5($remote_contents) != md5(file_get_contents("/home/ethos/claymore.stub.conf"))) {
+		$message = "IMPORTED REMOTECM CONFIG INTO LOCAL claymore.stub.conf.";
+		echo $message . "\n";
+		file_put_contents("/home/ethos/claymore.stub.conf", $remote_contents . "\n");
+	}
+	else {
+		if ($interactive == "1") {
+			echo "...";
+		}
+	}
+
+	`sudo /usr/bin/dos2unix -q /home/ethos/claymore.stub.conf`;
+}
+?>
+
