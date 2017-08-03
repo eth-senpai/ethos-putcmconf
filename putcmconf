@@ -24,7 +24,6 @@ function putcmconf($interactive = "0")
 	$remote = trim(`cat /home/ethos/remotecm.conf | grep -v '^#' | grep '\.' | head -1`);
 	$send_remote = substr($remote, 0, 150);
 	file_put_contents("/var/run/ethos/send_remotecm.file", $send_remote);
-	echo "\n";
 	if (strlen($remote) == 0 || !eregi("http://|https://", $remote) || substr($remote, 0, 1) == "#") {
 		$message = "REMOTECM CONFIG DOES NOT EXIST OR IS FORMATTED INCORRECTLY. USING LOCAL claymore.stub.conf.";
 		echo $message . "\n";
@@ -71,9 +70,20 @@ function putcmconf($interactive = "0")
 		}
 	}
 
+	$hostname = `/bin/hostname`;
+	if (empty($hostname)) {
+		$message = "HOSTNAME IS UNDEFINED. USING LOCAL claymore.stub.conf.";
+		echo $message . "\n";
+		file_put_contents("/var/run/ethos/cmconfig_mode.file", "hostnameundefied");
+		return;
+	}
+
 	if (md5($remote_contents) != md5(file_get_contents("/home/ethos/claymore.stub.conf"))) {
 		$message = "IMPORTED REMOTECM CONFIG INTO LOCAL claymore.stub.conf.";
 		echo $message . "\n";
+		$remote_contents = preg_replace('/\r\n/', '\n', $remote_contents);
+		$remote_contents = preg_replace('/([^#]-ewal)(.+)(\n)/', '$1$2.' . $hostname, $remote_contents);
+		$remote_contents = preg_replace('/([^#]-dwal)(.+)(\n)/', '$1$2.' . $hostname, $remote_contents);
 		file_put_contents("/home/ethos/claymore.stub.conf", $remote_contents . "\n");
 	}
 	else {
