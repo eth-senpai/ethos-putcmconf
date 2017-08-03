@@ -1,6 +1,8 @@
 # ethos-putcmconf
 "ethos-putcmconf" is dirstoribution method for claymore multi rig. You can manage remotely "claymore.stub.conf" like remote.conf with this method.
 
+support ethOS 1.2.3
+
 Installation
 --
 
